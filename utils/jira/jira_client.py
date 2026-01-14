@@ -1,13 +1,13 @@
-# utils/jira/jira_client.py
+# jira_client.py - IMPROVED VERSION
 """
 JIRA API Client - Task va PR ma'lumotlarini olish
 
-Bu modul real-time ma'lumot oladi.
-Asosan TZ-PR Moslik funksiyasi uchun ishlatiladi.
+YANGI: Development Status API dan PR URL olish!
 """
 from jira import JIRA
 from typing import Dict, List, Optional, Any
 import json
+import requests
 
 
 class JiraClient:
@@ -74,8 +74,12 @@ class JiraClient:
                     'created': c.created[:16].replace('T', ' ')
                 })
 
-        # PR URLs olish
-        pr_urls = self.extract_pr_urls(issue)
+        # PR URLs olish (YANGI METHOD!)
+        pr_urls = self.extract_pr_urls_dev_status(issue_key)
+
+        # Agar Dev Status API ishlamasa, eski methoddan harakat qilish
+        if not pr_urls:
+            pr_urls = self.extract_pr_urls_legacy(issue)
 
         return {
             'key': issue.key,
@@ -95,8 +99,67 @@ class JiraClient:
             'components': [c.name for c in fields.components] if fields.components else []
         }
 
-    def extract_pr_urls(self, issue) -> List[Dict]:
-        """Issue dan PR URL larini olish"""
+    def extract_pr_urls_dev_status(self, issue_key: str) -> List[Dict]:
+        """
+        YANGI METHOD: Development Status API dan PR URL olish
+
+        API: /rest/dev-status/1.0/issue/detail
+        """
+        pr_urls = []
+
+        try:
+            # First, get issue ID (not key!)
+            issue = self.client.issue(issue_key)
+            issue_id = issue.id
+
+            # Development Status API endpoint
+            url = f"{self.server}/rest/dev-status/1.0/issue/detail"
+
+            params = {
+                'issueId': issue_id,  # Use ID, not KEY!
+                'applicationType': 'GitHub',
+                'dataType': 'pullrequest'
+            }
+
+            response = requests.get(
+                url,
+                params=params,
+                auth=(self.email, self.token),
+                headers={'Accept': 'application/json'},
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+
+                # Parse response
+                detail = data.get('detail', [])
+                for item in detail:
+                    pull_requests = item.get('pullRequests', [])
+                    for pr in pull_requests:
+                        pr_url = pr.get('url', '')
+                        if pr_url:
+                            pr_urls.append({
+                                'url': pr_url,
+                                'title': pr.get('name', pr.get('title', '')),
+                                'status': pr.get('status', ''),
+                                'source': 'JIRA (Dev Status API)'
+                            })
+
+                if pr_urls:
+                    print(f"   ✅ Dev Status API: {len(pr_urls)} ta PR topildi!")
+
+        except Exception as e:
+            print(f"   ⚠️ Dev Status API error: {e}")
+
+        return pr_urls
+
+    def extract_pr_urls_legacy(self, issue) -> List[Dict]:
+        """
+        ESKI METHOD: Custom field dan PR URL olish
+
+        Bu method eski JIRA integratsiyalar uchun
+        """
         pr_urls = []
 
         try:
@@ -125,7 +188,7 @@ class JiraClient:
                             'url': url,
                             'title': pr.get('name', pr.get('title', '')),
                             'status': pr.get('status', pr.get('state', '')),
-                            'source': 'GitHub'
+                            'source': 'JIRA (Legacy)'
                         })
 
             # Format 2: Nested in json.cachedValue
@@ -147,7 +210,7 @@ class JiraClient:
                                 'url': url,
                                 'title': pr.get('name', ''),
                                 'status': pr.get('status', ''),
-                                'source': 'GitHub'
+                                'source': 'JIRA (Legacy)'
                             })
 
             # Format 3: Development panel v2
@@ -161,11 +224,11 @@ class JiraClient:
                                 'url': url,
                                 'title': pr.get('name', ''),
                                 'status': pr.get('status', ''),
-                                'source': detail.get('_instance', {}).get('name', 'GitHub')
+                                'source': 'JIRA (Legacy)'
                             })
 
         except Exception as e:
-            print(f"⚠️ PR URL extraction error: {e}")
+            print(f"   ⚠️ Legacy PR extraction error: {e}")
 
         # Dublikatlarni olib tashlash
         seen_urls = set()

@@ -1,18 +1,15 @@
-# ui/statistics.py - V4 (OPTIMIZED - Sprint-based lazy loading)
+# ui/statistics.py
 import streamlit as st
 import plotly.express as px
-import plotly.graph_objects as go
 import pandas as pd
 from openpyxl import load_workbook
 import os
 from dotenv import load_dotenv
-import re
 import time
 import sys
 from typing import Dict, List
 
-from ui.components import render_header
-from ui.styles import CHART_COLORS, COLOR_PALETTE
+from ui.styles import CHART_COLORS
 
 load_dotenv()
 

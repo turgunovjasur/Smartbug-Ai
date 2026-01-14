@@ -1,10 +1,8 @@
-# utils/github/github_client.py
+# utils/github/github_client.py - IMPROVED VERSION
 """
 GitHub API Client - PR va kod olish
 
-REST API ishlatadi:
-- GET /repos/{owner}/{repo}/pulls/{number}/files - PR fayllar
-- GET /repos/{owner}/{repo}/contents/{path} - Fayl mazmuni
+YANGI: Branch name bilan ham PR qidirish!
 """
 import requests
 import base64
@@ -25,7 +23,7 @@ class GitHubClient:
 
         self.token = token or settings.GITHUB_TOKEN
         self.base_url = settings.GITHUB_API_URL
-        self.org = settings.GITHUB_ORG  # Settings dan tashkilot nomini olamiz
+        self.org = settings.GITHUB_ORG
 
         self.headers = {
             'Accept': 'application/vnd.github.v3+json',
@@ -234,30 +232,85 @@ class GitHubClient:
 
     def search_pr_by_jira_key(self, jira_key: str) -> List[Dict]:
         """
-        Jira Key (masalan DEV-6346) bo'yicha GitHub dan PR qidirish.
+        Jira Key (masalan DEV-6959) bo'yicha GitHub dan PR qidirish.
         Bu metod Jira link bermagan holatlar uchun zaxira yo'li.
+
+        YANGI: Multi-strategy search!
+        1. Title/body'da JIRA key bor PR'lar
+        2. Branch name'da JIRA key bor PR'lar (head:branch-name)
         """
         url = f"{self.base_url}/search/issues"
-
-        # Qidiruv so'rovi:
-        # org:greenwhite "DEV-6346" is:pr
-        query = f'org:{self.org} "{jira_key}" is:pr'
-
-        print(f"   🔍 GitHub Search: {query}")
-
-        response = self._make_request(url, params={'q': query, 'sort': 'updated'})
-
         found_prs = []
-        if response.status_code == 200:
-            items = response.json().get('items', [])
-            for item in items:
-                found_prs.append({
-                    'url': item.get('html_url'),  # PR linki
-                    'title': item.get('title'),
-                    'status': item.get('state'),
-                    'source': 'GitHub (Search)'
-                })
+
+        # Strategy 1: Search in title and body
+        query1 = f'org:{self.org} "{jira_key}" is:pr'
+        print(f"   🔍 GitHub Search (title/body): {query1}")
+
+        try:
+            response1 = self._make_request(url, params={'q': query1, 'sort': 'updated'})
+
+            if response1.status_code == 200:
+                items = response1.json().get('items', [])
+                for item in items:
+                    found_prs.append({
+                        'url': item.get('html_url'),
+                        'title': item.get('title'),
+                        'status': item.get('state'),
+                        'source': 'GitHub (title/body)'
+                    })
+
+                if items:
+                    print(f"   ✅ Title/body search: {len(items)} ta topildi!")
+            else:
+                print(f"   ⚠️ Title/body search error: {response1.status_code}")
+        except Exception as e:
+            print(f"   ⚠️ Title/body search exception: {e}")
+
+        # Strategy 2: Search in branch names (if not found in title/body)
+        if not found_prs:
+            print(f"   🔍 Branch name search...")
+
+            # Common branch patterns
+            branch_patterns = [
+                jira_key,  # DEV-6959
+                jira_key.lower(),  # dev-6959
+                jira_key.replace('-', '_'),  # DEV_6959
+                f"feature/{jira_key}",  # feature/DEV-6959
+                f"bugfix/{jira_key}",  # bugfix/DEV-6959
+                f"fix/{jira_key}",  # fix/DEV-6959
+            ]
+
+            for pattern in branch_patterns:
+                query2 = f'org:{self.org} head:{pattern} is:pr'
+
+                try:
+                    response2 = self._make_request(url, params={'q': query2, 'sort': 'updated'})
+
+                    if response2.status_code == 200:
+                        items = response2.json().get('items', [])
+                        for item in items:
+                            pr_url = item.get('html_url')
+                            # Avoid duplicates
+                            if not any(pr['url'] == pr_url for pr in found_prs):
+                                found_prs.append({
+                                    'url': pr_url,
+                                    'title': item.get('title'),
+                                    'status': item.get('state'),
+                                    'source': f'GitHub (branch:{pattern})'
+                                })
+
+                        # If found, break
+                        if items:
+                            print(f"   ✅ Branch search: {len(items)} ta topildi (pattern: {pattern})!")
+                            break
+                except Exception as e:
+                    print(f"   ⚠️ Branch search exception ({pattern}): {e}")
+                    continue
+
+        # Final result
+        if found_prs:
+            print(f"   ✅ JAMI: {len(found_prs)} ta PR topildi!")
         else:
-            print(f"❌ GitHub Search Error: {response.status_code} - {response.text}")
+            print(f"   ❌ Hech qanday PR topilmadi")
 
         return found_prs

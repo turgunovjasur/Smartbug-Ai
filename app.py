@@ -1,14 +1,15 @@
 # app.py
 """
-JIRA Bug Analyzer - Main Application v2.0
+JIRA Bug Analyzer - Main Application v3.1
 
-3 ta asosiy funksiya:
+4 ta asosiy funksiya:
 1. Bug Analyzer - Bug root cause analysis
 2. Sprint Statistics - Sprint statistikasi
 3. TZ-PR Checker - TZ va kod mosligi
+4. Test Case Generator - Test case lar generatsiya
 
 Author: JASUR TURGUNOV
-Version: 2.0.0
+Version: 3.1.0
 """
 import streamlit as st
 
@@ -20,14 +21,15 @@ st.set_page_config(
     initial_sidebar_state="expanded",
     menu_items={
         'About': """
-        # JIRA Bug Analyzer v2.0
+        # JIRA Bug Analyzer v3.1
 
         AI-powered bug analysis system.
 
         **Features:**
-        - 🛠 Bug Root Cause Analysis
-        - 📊 Sprint Statistics
-        - 🔍 TZ-PR Compliance Check
+        - Bug Root Cause Analysis
+        - Sprint Statistics
+        - TZ-PR Compliance Check
+        - Test Case Generator
 
         **Author:** JASUR TURGUNOV
         """
@@ -45,7 +47,7 @@ def main():
     """Main application entry point"""
 
     # Sidebar - page selection & settings
-    from ui.sidebar import render_sidebar
+    from ui.pages.sidebar import render_sidebar
     page, settings = render_sidebar()
 
     # Save settings to session state
@@ -55,31 +57,36 @@ def main():
     # ==================== PAGE ROUTING ====================
 
     if page == "Bug Analyzer":
-        # Bug Analyzer sahifasi (MAVJUD - o'zgarmaydi)
-        from ui.bug_analyzer import render_bug_analyzer
+        # Bug Analyzer sahifasi
+        from ui.pages.bug_analyzer import render_bug_analyzer
         render_bug_analyzer()
 
     elif page == "Sprint Statistics":
-        # Statistics sahifasi (MAVJUD - o'zgarmaydi)
-        from ui.statistics import render_statistics
+        # Statistics sahifasi
+        from ui.pages.statistics import render_statistics
         render_statistics()
 
     elif page == "TZ-PR Checker":
-        # TZ-PR Checker sahifasi (YANGI!)
+        # TZ-PR Checker sahifasi
         from ui.pages.tz_pr_checker import render_tz_pr_checker
         render_tz_pr_checker()
 
+    elif page == "Test Case Generator":
+        # Test Case Generator sahifasi
+        from ui.pages.testcase_generator import render_testcase_generator
+        render_testcase_generator()
+
     else:
         # Fallback
-        st.error(f"❌ Noma'lum sahifa: {page}")
+        st.error(f"Noma'lum sahifa: {page}")
 
 
 # ==================== ERROR HANDLER ====================
 def handle_error(error: Exception):
     """Global error handler"""
-    st.error(f"❌ Xatolik yuz berdi: {str(error)}")
+    st.error(f"Xatolik yuz berdi: {str(error)}")
 
-    with st.expander("🔧 Debug ma'lumotlar"):
+    with st.expander("Debug ma'lumotlar"):
         import traceback
         st.code(traceback.format_exc())
 

@@ -1,47 +1,16 @@
 # ui/pages/tz_pr_checker.py
 """
-TZ-PR Moslik Tekshirish Sahifasi
+TZ-PR Moslik Tekshirish - OPTIMIZED STATUS
 
-Bu sahifa:
-1. Task key kiritish
-2. JIRA dan TZ olish
-3. GitHub dan PR kod olish
-4. AI tahlil ko'rsatish
+Yangilik:
+- Faqat oxirgi status
+- Progress bar
+- Takror yo'q
+
+Author: JASUR TURGUNOV
+Version: 3.1
 """
 import streamlit as st
-
-
-def render_loading_animation_simple(text, subtext=""):
-    """Oddiy loading animation"""
-    st.markdown(f"""
-    <div style="
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 2rem;
-        background: rgba(88, 166, 255, 0.05);
-        border-radius: 12px;
-        border: 1px solid #30363d;
-    ">
-        <div style="
-            width: 50px;
-            height: 50px;
-            border: 3px solid #30363d;
-            border-top: 3px solid #58a6ff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        "></div>
-        <p style="color: #e6edf3; margin-top: 1rem; font-weight: 500;">{text}</p>
-        <p style="color: #8b949e; font-size: 0.85rem;">{subtext}</p>
-    </div>
-    <style>
-        @keyframes spin {{
-            0% {{ transform: rotate(0deg); }}
-            100% {{ transform: rotate(360deg); }}
-        }}
-    </style>
-    """, unsafe_allow_html=True)
 
 
 def render_tz_pr_checker():
@@ -56,111 +25,131 @@ def render_tz_pr_checker():
     </div>
     """, unsafe_allow_html=True)
 
-    # Info box
+    # Info
     st.info("""
-    📋 **Qanday ishlaydi:**
-    1. JIRA task key kiriting (masalan: DEV-1234)
-    2. Tizim JIRA dan TZ (description) oladi
-    3. GitHub dan PR kod o'zgarishlarini oladi
-    4. Gemini AI ikkalasini solishtiradi va moslikni baholaydi
+    📋 **Qanday ishlaydi:** JIRA task key → TZ olish → PR olish → AI tahlil
     """)
 
-    # GitHub token tekshirish
-    try:
-        from config.settings import settings
-        if not settings.GITHUB_TOKEN:
-            st.warning("""
-            ⚠️ **GitHub Token topilmadi!**
-
-            TZ-PR Checker ishlashi uchun GitHub token kerak.
-
-            `.env` faylga qo'shing:
-            ```
-            GITHUB_TOKEN=ghp_your_token_here
-            ```
-            """)
-    except:
-        pass
-
-    # Input section
+    # Input
     col1, col2 = st.columns([3, 1])
 
     with col1:
         task_key = st.text_input(
-            "📝 Task Key kiriting",
-            placeholder="DEV-1234",
-            help="JIRA task key (masalan: DEV-1234, DEV-5678)"
+            "🔑 Task Key",
+            placeholder="DEV-1234"
         ).strip().upper()
 
     with col2:
         st.markdown("<br>", unsafe_allow_html=True)
         analyze_button = st.button("🔍 Tekshirish", use_container_width=True, type="primary")
 
-    # Validation
     if analyze_button:
         if not task_key:
-            st.error("❌ Iltimos, task key kiriting!")
+            st.error("❌ Task key kiriting!")
             return
-
-        if not task_key.startswith(('DEV-', 'PROD-', 'TEST-', 'BUG-')):
-            st.warning("⚠️ Task key formati noto'g'ri bo'lishi mumkin. Davom etilmoqda...")
-
-        # Analysis
         _run_analysis(task_key)
 
-    # Recent searches (session state)
+    # History
     if 'tz_pr_history' in st.session_state and st.session_state.tz_pr_history:
         st.markdown("---")
         st.markdown("### 📜 So'nggi tekshiruvlar")
-
         for idx, item in enumerate(reversed(st.session_state.tz_pr_history[-5:])):
             col1, col2, col3 = st.columns([2, 2, 1])
             with col1:
-                status_emoji = "✅" if item.get('success', False) else "❌"
+                status_emoji = "✅" if item.get('success') else "❌"
                 st.write(f"{status_emoji} {item['key']}")
             with col2:
                 st.write(f"🕐 {item['time']}")
             with col3:
-                if st.button("🔄", key=f"reload_{item['key']}_{idx}"):
+                if st.button("🔄", key=f"r_{item['key']}_{idx}"):
                     _run_analysis(item['key'])
 
 
 def _run_analysis(task_key: str):
-    """Tahlilni ishga tushirish"""
+    """Tahlil - QISQA VA ANIQ STATUS"""
 
-    # Loading placeholder
-    loading_placeholder = st.empty()
-    result_placeholder = st.empty()
+    # Settings
+    max_files = st.session_state.get('max_files')
+    show_full_diff = st.session_state.get('show_full_diff', True)
 
-    # Step 1: Loading
-    with loading_placeholder.container():
-        render_loading_animation_simple(
-            "🔄 Ma'lumotlar yuklanmoqda...",
-            f"Task: {task_key}"
-        )
+    if max_files:
+        st.caption(f"⚙️ Max {max_files} fayl, Diff: {'To\'liq' if show_full_diff else 'Qisqa'}")
+
+    # FAQAT 2 TA CONTAINER
+    progress_container = st.container()
+    result_container = st.container()
+
+    # Progress state
+    progress_state = {'step': 0, 'total': 4, 'message': '', 'warnings': []}
+
+    with progress_container:
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+    def update_progress(msg, step):
+        """Progress yangilash"""
+        progress_state['step'] = step
+        progress_state['message'] = msg
+        progress_bar.progress(step / progress_state['total'])
+        status_text.info(f"**[{step}/{progress_state['total']}]** {msg}")
 
     try:
-        # Import service
         from services.tz_pr_service import TZPRService
+        from datetime import datetime
 
-        # Initialize
         service = TZPRService()
 
-        # Run analysis
-        result = service.analyze_task(task_key)
+        # Callback - FAQAT ASOSIY STATUSLAR
+        def callback(stype, msg):
+            # Step 1: JIRA
+            if 'TZ olindi' in msg:
+                update_progress("✅ TZ olindi", 1)
 
-        # Clear loading
-        loading_placeholder.empty()
+            # Step 2: GitHub
+            elif 'fayl o\'zgarishi topildi' in msg:
+                update_progress(f"✅ {msg}", 2)
 
-        # Show results
-        with result_placeholder.container():
-            _display_results(result)
+            # Step 3: AI tahlil
+            elif 'AI tahlil qilmoqda' in msg:
+                update_progress("🤖 AI tahlil...", 3)
+            elif 'yuborilmoqda' in msg:
+                update_progress("⚡ AI'ga yuborilmoqda (60s)...", 3)
 
-        # Save to history
+            # Step 4: Tayyor
+            elif 'AI tahlil tugadi' in msg:
+                update_progress("✅ Tahlil tugadi!", 4)
+
+            # Warnings
+            elif stype == 'warning':
+                progress_state['warnings'].append(msg)
+
+        # Boshlash
+        update_progress("🔍 Tahlil boshlandi...", 0)
+
+        # Run
+        result = service.analyze_task(
+            task_key=task_key,
+            max_files=max_files,
+            show_full_diff=show_full_diff,
+            status_callback=callback
+        )
+
+        # Clear progress
+        progress_container.empty()
+
+        # Warnings
+        if progress_state['warnings']:
+            with st.expander("⚠️ Ogohlantirishlar", expanded=False):
+                for w in progress_state['warnings']:
+                    st.warning(w)
+
+        # Results
+        with result_container:
+            _display_results(result, max_files, show_full_diff)
+
+        # History
         if 'tz_pr_history' not in st.session_state:
             st.session_state.tz_pr_history = []
-
-        from datetime import datetime
         st.session_state.tz_pr_history.append({
             'key': task_key,
             'time': datetime.now().strftime('%H:%M:%S'),
@@ -168,131 +157,112 @@ def _run_analysis(task_key: str):
         })
 
     except Exception as e:
-        loading_placeholder.empty()
-        st.error(f"❌ Xatolik yuz berdi: {str(e)}")
-
-        with st.expander("🔧 Debug ma'lumotlar"):
+        progress_container.empty()
+        st.error(f"❌ Xatolik: {str(e)}")
+        with st.expander("🔧 Debug"):
             import traceback
             st.code(traceback.format_exc())
 
 
-def _display_results(result):
-    """Natijalarni ko'rsatish"""
+def _display_results(result, max_files, show_full_diff):
+    """Natijalar"""
 
     if not result.success:
         st.error(result.error_message)
-
+        if result.warnings:
+            for w in result.warnings:
+                st.warning(f"• {w}")
         if result.tz_content:
-            with st.expander("📋 TZ mazmuni (mavjud)"):
+            with st.expander("📋 TZ"):
                 st.text(result.tz_content)
         return
 
-    # Success - show results
+    # Success
     st.success(f"✅ {result.task_key} tahlili tayyor!")
 
-    # Metrics row
+    # Retry info
+    if result.ai_retry_count > 0:
+        st.info(f"🔄 Retry: {result.ai_retry_count}, Files: {result.files_analyzed}/{result.files_changed}")
+
+    # Metrics
     col1, col2, col3, col4 = st.columns(4)
-
     with col1:
-        st.metric("🔗 PR Count", result.pr_count)
-
+        st.metric("🔗 PR", result.pr_count)
     with col2:
-        st.metric("📁 Files Changed", result.files_changed)
-
+        st.metric("📁 Files", result.files_changed)
     with col3:
-        st.metric("➕ Additions", result.total_additions)
-
+        st.metric("➕", result.total_additions)
     with col4:
-        st.metric("➖ Deletions", result.total_deletions)
+        st.metric("➖", result.total_deletions)
 
     st.markdown("---")
 
     # Tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "🤖 AI Tahlil",
-        "📋 TZ Mazmuni",
-        "💻 Kod O'zgarishlari",
-        "📊 Statistika"
-    ])
+    tab1, tab2, tab3, tab4 = st.tabs(["🤖 AI", "📋 TZ", "💻 Kod", "📊 Statistics"])
 
-    # Tab 1: AI Analysis
     with tab1:
         st.markdown("### 🤖 Gemini AI Tahlili")
         st.markdown(result.ai_analysis)
 
-    # Tab 2: TZ Content
     with tab2:
-        st.markdown("### 📋 Task TZ (Technical Zadanie)")
+        st.markdown("### 📋 Task TZ")
         st.markdown(f"**Task:** {result.task_key}")
         st.markdown(f"**Summary:** {result.task_summary}")
         st.markdown("---")
         st.text(result.tz_content)
 
-    # Tab 3: Code Changes
     with tab3:
         st.markdown("### 💻 Kod O'zgarishlari")
 
         if not result.pr_details:
-            st.warning("PR ma'lumotlari yo'q")
+            st.warning("PR yo'q")
             return
 
         for pr in result.pr_details:
             with st.expander(
-                    f"🔗 PR #{pr['pr_number']}: {pr['title']} "
-                    f"({'✅ Merged' if pr['merged'] else '⏳ ' + pr['state']})",
-                    expanded=True
+                    f"🔗 PR #{pr['pr_number']}: {pr['title'][:50]}...",
+                    expanded=False
             ):
-                # PR info
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.write(f"👤 **Author:** {pr['author']}")
+                    st.write(f"👤 {pr['author']}")
                 with col2:
-                    st.write(f"➕ **Additions:** {pr['additions']}")
+                    st.write(f"➕ {pr['additions']}")
                 with col3:
-                    st.write(f"➖ **Deletions:** {pr['deletions']}")
+                    st.write(f"➖ {pr['deletions']}")
 
-                st.write(f"🔗 [GitHub da ochish]({pr['url']})")
+                st.write(f"🔗 [GitHub]({pr['url']})")
 
                 # Files
-                st.markdown("#### 📁 O'zgargan fayllar:")
+                files_to_show = pr['files']
+                if max_files and len(pr['files']) > max_files:
+                    files_to_show = pr['files'][:max_files]
+                    st.caption(f"⚠️ {len(pr['files'])} dan {max_files} ta ko'rsatilmoqda")
 
-                for f in pr['files']:
-                    status_emoji = {
-                        'modified': '📝',
-                        'added': '➕',
-                        'removed': '➖',
-                        'renamed': '📋'
-                    }.get(f['status'], '📄')
+                for f in files_to_show:
+                    emoji = {'modified': '📝', 'added': '➕', 'removed': '➖'}.get(f['status'], '📄')
 
-                    with st.expander(f"{status_emoji} {f['filename']} (+{f['additions']} -{f['deletions']})"):
+                    with st.expander(f"{emoji} {f['filename']} (+{f['additions']} -{f['deletions']})"):
                         if f.get('patch'):
-                            st.code(f['patch'], language='diff')
-                        else:
-                            st.write("*Diff mavjud emas*")
+                            patch = f['patch']
+                            if not show_full_diff and len(patch) > 1000:
+                                st.code(patch[:1000] + "\n\n...", language='diff')
+                                st.caption("💡 To'liq diff uchun sidebar'da sozlang")
+                            else:
+                                st.code(patch, language='diff')
 
-    # Tab 4: Statistics
     with tab4:
         st.markdown("### 📊 Statistika")
-
-        # File types
         from services.tz_pr_service import TZPRService
         service = TZPRService()
         summary = service.get_pr_files_summary(result.pr_details)
 
         col1, col2 = st.columns(2)
-
         with col1:
-            st.markdown("#### 📁 Fayl turlari")
-            for ext, count in sorted(summary['by_extension'].items(), key=lambda x: x[1], reverse=True):
-                st.write(f"• `{ext}`: {count} ta")
-
+            st.markdown("**Fayl turlari:**")
+            for ext, cnt in sorted(summary['by_extension'].items(), key=lambda x: x[1], reverse=True)[:5]:
+                st.write(f"• `{ext}`: {cnt}")
         with col2:
-            st.markdown("#### 📊 O'zgarish turlari")
-            for status, count in summary['by_status'].items():
-                emoji = {'modified': '📝', 'added': '➕', 'removed': '➖'}.get(status, '📄')
-                st.write(f"• {emoji} {status}: {count} ta")
-
-        if summary['large_files']:
-            st.markdown("#### ⚠️ Katta o'zgarishlar (100+ qator)")
-            for f in summary['large_files']:
-                st.write(f"• `{f['filename']}`: {f['changes']} o'zgarish")
+            st.markdown("**O'zgarishlar:**")
+            for status, cnt in summary['by_status'].items():
+                st.write(f"• {status}: {cnt}")

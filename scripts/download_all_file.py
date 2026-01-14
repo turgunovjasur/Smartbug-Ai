@@ -30,7 +30,10 @@ load_dotenv()
 # ============================================================================
 class Config:
     # Sprint va Project
-    SPRINT_IDS = [2842, 3014, 2775, 2379, 2352, 2351, 2148, 2843, 3081]
+    # SPRINT_IDS = [2842, 3014, 2775, 2379, 2352, 2351, 2148, 2843, 3081] # 4-kvartal
+    # SPRINT_IDS = [2049, 1918, 1686, 1653, 1589, 1587] # 3-kvartal
+    # SPRINT_IDS = [1455, 1159, 1158, 1059, 927, 829, 663] # 2-kvartal
+    # SPRINT_IDS = [600, 103, 107, 597, 97, 102, 432, 94, 95, 267, 92, 90, 266] # 1-kvartal
     PROJECT_KEY = 'DEV'
     BOARD_ID = 10
 
@@ -63,33 +66,33 @@ ACTIVE_COLUMNS = [
     'Assignee',
     'Reporter',
     'Story Points',
-    'Created Date',
-    'Resolved Date',
-    'Added to Sprint',
-
-    # Pull Request
-    'PR Status',
-    'PR Count',
-    'PR Last Updated',
-
-    # Comments
-    'Comment Count',
-    'Comments',
-    'Comment Authors',
-
-    # Status & Time
-    'Status History',
-    'Time in Each Status',
-    'Testing Time',
-
-    # Testing Returns
-    'Return Count',
-    'Return Reasons',
-    'Testing Return Who',
-    'Testing Return When',
-
-    # Other
-    'Linked Issues',
+    # 'Created Date',
+    # 'Resolved Date',
+    # 'Added to Sprint',
+    #
+    # # Pull Request
+    # 'PR Status',
+    # 'PR Count',
+    # 'PR Last Updated',
+    #
+    # # Comments
+    # 'Comment Count',
+    # 'Comments',
+    # 'Comment Authors',
+    #
+    # # Status & Time
+    # 'Status History',
+    # 'Time in Each Status',
+    # 'Testing Time',
+    #
+    # # Testing Returns
+    # 'Return Count',
+    # 'Return Reasons',
+    # 'Testing Return Who',
+    # 'Testing Return When',
+    #
+    # # Other
+    # 'Linked Issues',
 ]
 
 COLUMN_WIDTHS = {

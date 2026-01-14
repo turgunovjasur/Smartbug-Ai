@@ -1,6 +1,6 @@
-# ui/bug_analyzer.py - V2 (Emoji fixed)
+# ui/bug_analyzer.py
 import streamlit as st
-from ui.components import load_models, render_header, render_loading_animation, render_results_info
+from ui.components import load_models, render_loading_animation, render_results_info
 
 
 def search_similar_bugs(bug_description, embedding_helper, vectordb_helper, top_n=3, min_similarity=0.70):

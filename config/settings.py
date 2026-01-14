@@ -1,8 +1,4 @@
 # config/settings.py
-"""
-Barcha sozlamalar bitta joyda
-JIRA Bug Analyzer v2.0
-"""
 import os
 from dotenv import load_dotenv
 
